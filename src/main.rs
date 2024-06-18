@@ -1,8 +1,8 @@
 mod message;
 
-use std::sync::{Arc, Mutex};
 use tokio::sync::broadcast;
 use warp::Filter;
+use futures_util::{StreamExt, SinkExt};
 use message::Message;
 
 #[tokio::main]
@@ -25,18 +25,22 @@ async fn main() {
         .map(|ws: warp::ws::Ws, tx: broadcast::Sender<Message>| {
             ws.on_upgrade(move |socket| {
                 let mut rx = tx.subscribe();
-                let (user_ws_tx, mut user_ws_rx) = socket.split();
-                tokio::spawn(async move {
+                let (mut user_ws_tx, mut user_ws_rx) = socket.split();
+                let tx_task = tokio::spawn(async move {
                     while let Ok(msg) = rx.recv().await {
                         let msg = warp::ws::Message::text(serde_json::to_string(&msg).unwrap());
                         user_ws_tx.send(msg).await.unwrap();
                     }
                 });
-                tokio::spawn(async move {
+                let rx_task = tokio::spawn(async move {
                     while let Some(result) = user_ws_rx.next().await {
                         let _ = result.unwrap();
                     }
                 });
+                async move {
+                    tx_task.await.unwrap();
+                    rx_task.await.unwrap();
+                }
             })
         });
 
