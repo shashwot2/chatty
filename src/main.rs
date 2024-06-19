@@ -1,9 +1,9 @@
 mod message;
 
+use futures_util::{SinkExt, StreamExt};
+use message::Message;
 use tokio::sync::broadcast;
 use warp::Filter;
-use futures_util::{StreamExt, SinkExt};
-use message::Message;
 
 #[tokio::main]
 async fn main() {
@@ -19,10 +19,8 @@ async fn main() {
             warp::reply()
         });
 
-    let receive_messages = warp::path("receive")
-        .and(warp::ws())
-        .and(tx.clone())
-        .map(|ws: warp::ws::Ws, tx: broadcast::Sender<Message>| {
+    let receive_messages = warp::path("receive").and(warp::ws()).and(tx.clone()).map(
+        |ws: warp::ws::Ws, tx: broadcast::Sender<Message>| {
             ws.on_upgrade(move |socket| {
                 let mut rx = tx.subscribe();
                 let (mut user_ws_tx, mut user_ws_rx) = socket.split();
@@ -42,9 +40,14 @@ async fn main() {
                     rx_task.await.unwrap();
                 }
             })
-        });
+        },
+    );
 
-    let routes = send_message.or(receive_messages);
+    let cors = warp::cors()
+        .allow_any_origin()
+        .allow_headers(vec!["Content-Type"])
+        .allow_methods(vec!["POST", "GET"]);
+    let routes = send_message.or(receive_messages).with(cors);
 
     warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }
