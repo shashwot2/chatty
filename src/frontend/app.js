@@ -3,9 +3,11 @@ document.getElementById('send-message').addEventListener('click', sendMessage);
 
 let ws;
 let room;
+let password;
 
 function joinRoom() {
     room = document.getElementById('room-input').value;
+    password = document.getElementById('room-password').value;
     if (!room) {
         alert('Please enter a room name');
         return;
@@ -39,7 +41,7 @@ function sendMessage() {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ username, content, room }),
+        body: JSON.stringify({ username, content, room, password }),
     });
 
     document.getElementById('message-input').value = '';
